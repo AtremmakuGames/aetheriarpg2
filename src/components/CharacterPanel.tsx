@@ -285,6 +285,50 @@ export const CharacterPanel: React.FC<CharacterPanelProps> = ({
               );
             })}
           </div>
+
+          {/* Hero Attack Power Summary */}
+          <div className="mt-3 bg-gradient-to-r from-amber-950/60 to-rose-950/60 border border-amber-500/30 p-3 rounded-xl flex items-center justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase text-amber-400">⚔️ Total Hero Attack DMG</div>
+              <div className="text-xs text-slate-400">Scaling from Weapon Rarity, Enhancement & Stats</div>
+            </div>
+            <div className="text-base font-black font-mono text-amber-300">
+              {(() => {
+                const totalEquippedBonuses = Object.values(character.equipped).reduce<Record<string, number>>((acc, rawItem) => {
+                  const item = rawItem as EquipmentItem | undefined;
+                  if (!item) return acc;
+                  const levelMult = 1 + (item.enhancementLevel || 0) * 0.2;
+                  Object.entries(item.statBonus).forEach(([k, v]) => {
+                    if (typeof v === 'number') {
+                      acc[k] = (acc[k] || 0) + Math.floor(v * levelMult);
+                    }
+                  });
+                  return acc;
+                }, {});
+
+                const totalStr = character.attributes.strength + (totalEquippedBonuses['strength'] || 0);
+                const totalAgi = character.attributes.agility + (totalEquippedBonuses['agility'] || 0);
+                const totalInt = character.attributes.intelligence + (totalEquippedBonuses['intelligence'] || 0);
+
+                let dmg = Math.floor(totalStr * 20 + totalAgi * 15 + totalInt * 12 + 500);
+
+                if (character.equipped.weapon) {
+                  const weapon = character.equipped.weapon;
+                  const enhancement = weapon.enhancementLevel || 0;
+                  let rarityMult = 1;
+                  if (weapon.rarity === 'rare') rarityMult = 3;
+                  if (weapon.rarity === 'epic') rarityMult = 10;
+                  if (weapon.rarity === 'legendary') rarityMult = 50;
+                  if (weapon.rarity === 'mythic') rarityMult = 200;
+                  if (weapon.rarity === 'prismatic') rarityMult = 1000;
+
+                  dmg = Math.floor(dmg * rarityMult * (1 + enhancement * 0.5));
+                }
+
+                return dmg.toLocaleString();
+              })()} DMG
+            </div>
+          </div>
         </div>
       </div>
     </div>

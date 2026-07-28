@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Character, FarmBoss, FarmCropPlot, HoeQuest, Resources } from '../types';
+import { Character, EquipmentItem, FarmBoss, FarmCropPlot, HoeQuest, Resources } from '../types';
 import { sound } from '../audio';
 import {
   Sprout,
@@ -67,12 +67,13 @@ export const FarmDimensionPanel: React.FC<FarmDimensionPanelProps> = ({
     { id: 'quest_4', title: 'Defeat Mad Boss Bull 🐂', description: 'Slay the Mad Boss Bull in the Farm Boss arena.', targetCount: 1, currentCount: 0, rewardGems: 600, completed: false, type: 'defeat_boss' },
   ]);
 
-  // Farm Bosses State
+  // Farm Bosses State (Higher HP and Fixed 1000 Gems drop)
   const [bosses, setBosses] = useState<FarmBoss[]>([
-    { id: 'boss_bull', name: 'Mad Boss Bull 🐂', emoji: '🐂', maxHp: 15000, currentHp: 15000, attackDmg: 35, rewardGold: 10000, rewardGems: 150, level: 10 },
-    { id: 'boss_chicken', name: 'Giant Mutant Rooster 🐔', emoji: '🐔', maxHp: 30000, currentHp: 30000, attackDmg: 55, rewardGold: 25000, rewardGems: 350, level: 20 },
-    { id: 'boss_ram', name: 'Demonic Ram 🐏', emoji: '🐏', maxHp: 60000, currentHp: 60000, attackDmg: 80, rewardGold: 60000, rewardGems: 750, level: 30 },
-    { id: 'boss_pig', name: 'Golden Cosmic Pig 🐖', emoji: '🐖', maxHp: 120000, currentHp: 120000, attackDmg: 110, rewardGold: 150000, rewardGems: 1500, level: 40 },
+    { id: 'boss_bull', name: 'Mad Boss Bull 🐂', emoji: '🐂', maxHp: 1000000, currentHp: 1000000, attackDmg: 50, rewardGold: 25000, rewardGems: 1000, level: 10 },
+    { id: 'boss_chicken', name: 'Giant Mutant Rooster 🐔', emoji: '🐔', maxHp: 3000000, currentHp: 3000000, attackDmg: 90, rewardGold: 50000, rewardGems: 1000, level: 20 },
+    { id: 'boss_ram', name: 'Demonic Ram 🐏', emoji: '🐏', maxHp: 7000000, currentHp: 7000000, attackDmg: 150, rewardGold: 100000, rewardGems: 1000, level: 30 },
+    { id: 'boss_pig', name: 'Golden Cosmic Pig 🐖', emoji: '🐖', maxHp: 15000000, currentHp: 15000000, attackDmg: 250, rewardGold: 250000, rewardGems: 1000, level: 40 },
+    { id: 'boss_dragon', name: 'Abyssal Void Dragon 🐲', emoji: '🐲', maxHp: 30000000, currentHp: 30000000, attackDmg: 400, rewardGold: 500000, rewardGems: 1000, level: 50 },
   ]);
 
   const [selectedBossIndex, setSelectedBossIndex] = useState<number>(0);
@@ -158,13 +159,49 @@ export const FarmDimensionPanel: React.FC<FarmDimensionPanelProps> = ({
     );
   };
 
+  // Calculate total hero damage factoring in equipped weapons and stats
+  const getHeroDamage = () => {
+    const totalEquippedBonuses = Object.values(character.equipped).reduce<Record<string, number>>((acc, rawItem) => {
+      const item = rawItem as EquipmentItem | undefined;
+      if (!item) return acc;
+      const levelMult = 1 + (item.enhancementLevel || 0) * 0.2;
+      Object.entries(item.statBonus).forEach(([k, v]) => {
+        if (typeof v === 'number') {
+          acc[k] = (acc[k] || 0) + Math.floor(v * levelMult);
+        }
+      });
+      return acc;
+    }, {});
+
+    const totalStr = character.attributes.strength + (totalEquippedBonuses['strength'] || 0);
+    const totalAgi = character.attributes.agility + (totalEquippedBonuses['agility'] || 0);
+    const totalInt = character.attributes.intelligence + (totalEquippedBonuses['intelligence'] || 0);
+
+    let dmg = Math.floor(totalStr * 20 + totalAgi * 15 + totalInt * 12 + 500);
+
+    if (character.equipped.weapon) {
+      const weapon = character.equipped.weapon;
+      const enhancement = weapon.enhancementLevel || 0;
+      let rarityMult = 1;
+      if (weapon.rarity === 'rare') rarityMult = 3;
+      if (weapon.rarity === 'epic') rarityMult = 10;
+      if (weapon.rarity === 'legendary') rarityMult = 50;
+      if (weapon.rarity === 'mythic') rarityMult = 200;
+      if (weapon.rarity === 'prismatic') rarityMult = 1000;
+
+      dmg = Math.floor(dmg * rarityMult * (1 + enhancement * 0.5));
+    }
+
+    return dmg;
+  };
+
   // Attack Farm Boss
   const handleHitBoss = () => {
     const curBoss = bosses[selectedBossIndex];
     if (curBoss.currentHp <= 0) return;
 
     sound.playSkillCast();
-    const heroDmg = Math.floor(character.attributes.strength * 8 + character.attributes.agility * 6 + character.attributes.intelligence * 5);
+    const heroDmg = getHeroDamage();
     const newHp = Math.max(0, curBoss.currentHp - heroDmg);
 
     setBosses((prev) =>
@@ -660,11 +697,18 @@ export const FarmDimensionPanel: React.FC<FarmDimensionPanelProps> = ({
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 space-y-2 max-w-md mx-auto">
+                <div className="flex items-center justify-between text-xs bg-slate-900 border border-slate-800 p-2 rounded-xl px-3 font-mono">
+                  <span className="text-slate-400">Equipped Weapon:</span>
+                  <span className="text-amber-400 font-bold">
+                    {character.equipped.weapon ? `${character.equipped.weapon.name} (+${character.equipped.weapon.enhancementLevel || 0})` : 'Unarmed (Equip Weapon in Store/Forge)'}
+                  </span>
+                </div>
+
                 <button
                   disabled={bosses[selectedBossIndex].currentHp <= 0}
                   onClick={handleHitBoss}
-                  className={`w-full max-w-md py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                  className={`w-full py-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
                     bosses[selectedBossIndex].currentHp > 0
                       ? 'bg-gradient-to-r from-rose-500 via-red-500 to-amber-500 text-slate-950 hover:scale-102 active:scale-98 shadow-xl shadow-rose-950/50'
                       : 'bg-slate-800 text-slate-600 border border-slate-700 cursor-not-allowed'
@@ -672,7 +716,9 @@ export const FarmDimensionPanel: React.FC<FarmDimensionPanelProps> = ({
                 >
                   <Sword className="w-4 h-4" />
                   <span>
-                    {bosses[selectedBossIndex].currentHp > 0 ? 'ATTACK BOSS' : 'BOSS DEFEATED!'}
+                    {bosses[selectedBossIndex].currentHp > 0
+                      ? `ATTACK BOSS (-${getHeroDamage().toLocaleString()} DMG)`
+                      : 'BOSS DEFEATED!'}
                   </span>
                 </button>
               </div>

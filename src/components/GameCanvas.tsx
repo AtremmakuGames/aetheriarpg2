@@ -340,7 +340,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           if (newHp <= 0) {
             if (node.isMob) {
               spawnBurstParticles(event.clientX, event.clientY, '#f59e0b', 35);
-              spawnFloatingText(`☠️ MOB SLAIN! +${yieldAmount * 2} REWARDS`, floatingX, floatingY - 20, true, '#facc15');
+              spawnFloatingText(`☠️ BOSS SLAIN! +1,000 GEMS!`, floatingX, floatingY - 20, true, '#facc15');
             }
             setTimeout(() => {
               setNodes((latest) =>

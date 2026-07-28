@@ -364,12 +364,29 @@ export default function App() {
     // Update Resources
     setResources((prev) => {
       const current = prev[node.type as keyof Resources] || 0;
-      const updated = { ...prev, [node.type]: current + totalYield };
+      let addedYield = totalYield;
+      if (node.type === 'gems') {
+        addedYield = node.isMob ? 1000 : Math.min(50, totalYield);
+      }
+      const updated = { ...prev, [node.type]: current + addedYield };
 
       // Bonus Drop Chance
       if (node.bonusYieldItem && Math.random() < node.bonusChance) {
         const bonusType = node.bonusYieldItem;
-        updated[bonusType] = (updated[bonusType as keyof Resources] || 0) + Math.floor(totalYield * 0.5 + 1);
+        if (bonusType === 'gems') {
+          const gemBonus = node.isMob ? 1000 : Math.min(25, Math.max(5, Math.floor(multiplier * 5)));
+          updated.gems = Math.min(50000, (prev.gems || 0) + gemBonus);
+        } else {
+          updated[bonusType] = (updated[bonusType as keyof Resources] || 0) + Math.floor(totalYield * 0.5 + 1);
+        }
+      } else if (node.isMob) {
+        // Location mobs drop a fixed 1000 gems when slain
+        updated.gems = Math.min(50000, (prev.gems || 0) + 1000);
+      }
+
+      // Hard safety guard on gems
+      if (updated.gems > 50000) {
+        updated.gems = 50000;
       }
 
       return updated;
@@ -672,12 +689,17 @@ export default function App() {
     );
   };
 
-  // Store: Buy Prismatic Merchant Gear with Gold
+  // Store: Buy Merchant Weapons & Gear
   const handleBuyPrismaticGear = (item: EquipmentItem) => {
     const goldCost = item.cost.gold || 0;
-    if (resources.gold < goldCost) return;
+    const gemsCost = item.cost.gems || 0;
+    if (resources.gold < goldCost || resources.gems < gemsCost) return;
 
-    setResources((prev) => ({ ...prev, gold: prev.gold - goldCost }));
+    setResources((prev) => ({
+      ...prev,
+      gold: Math.max(0, prev.gold - goldCost),
+      gems: Math.max(0, prev.gems - gemsCost),
+    }));
     setInventory((prev) => [...prev, item]);
   };
 

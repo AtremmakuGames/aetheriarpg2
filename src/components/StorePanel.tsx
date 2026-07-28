@@ -41,14 +41,50 @@ export const StorePanel: React.FC<StorePanelProps> = ({
     setTimeout(() => setPurchaseMsg(null), 3000);
   };
 
-  // Prismatic Merchant Equipment Items (Bought with Gold)
+  // Prismatic Merchant Equipment Items & Boss Slayer Arsenal (Bought with Gold or Gems)
   const PRISMATIC_MERCHANT_ITEMS: EquipmentItem[] = [
+    {
+      id: 'titan_boss_slayer_weapon',
+      name: 'Titan Boss-Slayer Greatsword',
+      slot: 'weapon',
+      rarity: 'epic',
+      description: 'Epic weapon forged with +800 Strength & +300 Agility to crush Farm Bosses!',
+      statBonus: { strength: 800, agility: 300, extraYield: 30, critRate: 20 },
+      cost: { gold: 15000 },
+      levelReq: 10,
+      iconName: 'Sword',
+      sellPriceGold: 5000,
+    },
+    {
+      id: 'godly_boss_annihilator_weapon',
+      name: 'Godly Boss Annihilator Scythe',
+      slot: 'weapon',
+      rarity: 'mythic',
+      description: 'Mythic weapon with +15,000 Strength! Slices through millions of Boss Health points.',
+      statBonus: { strength: 15000, agility: 8000, extraYield: 100, critRate: 50 },
+      cost: { gold: 100000, gems: 500 },
+      levelReq: 25,
+      iconName: 'Zap',
+      sellPriceGold: 30000,
+    },
+    {
+      id: 'cosmic_god_slayer_weapon',
+      name: 'Cosmic God-Slayer Blade',
+      slot: 'weapon',
+      rarity: 'prismatic',
+      description: 'Ultimate prismatic weapon with +50,000 Strength & +25,000 Agility. Obliterates any boss in seconds!',
+      statBonus: { strength: 50000, agility: 25000, extraYield: 250, critRate: 75 },
+      cost: { gold: 500000, gems: 2000 },
+      levelReq: 35,
+      iconName: 'Sword',
+      sellPriceGold: 100000,
+    },
     {
       id: 'prismatic_merchant_blade',
       name: 'Prismatic Merchant Sword',
       slot: 'weapon',
       rarity: 'prismatic',
-      description: 'A glowing prismatic blade forged by royal traders. Prismatic tier quality, moderately balanced stats.',
+      description: 'A glowing prismatic blade forged by royal traders. Prismatic tier quality, balanced stats.',
       statBonus: { strength: 45, agility: 30, extraYield: 18, critRate: 12 },
       cost: { gold: 25000 },
       levelReq: 15,
@@ -226,7 +262,10 @@ export const StorePanel: React.FC<StorePanelProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {PRISMATIC_MERCHANT_ITEMS.map((item) => {
               const goldPrice = item.cost.gold || 0;
-              const canAfford = resources.gold >= goldPrice;
+              const gemsPrice = item.cost.gems || 0;
+              const canAffordGold = resources.gold >= goldPrice;
+              const canAffordGems = resources.gems >= gemsPrice;
+              const canAfford = canAffordGold && canAffordGems;
 
               return (
                 <div
@@ -265,9 +304,17 @@ export const StorePanel: React.FC<StorePanelProps> = ({
                   </div>
 
                   <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1 text-amber-400 font-mono font-bold text-xs">
-                      <Coins className="w-3.5 h-3.5" />
-                      <span>{goldPrice.toLocaleString()} Gold</span>
+                    <div className="flex flex-col text-xs font-mono font-bold">
+                      {goldPrice > 0 && (
+                        <span className="text-amber-400 flex items-center gap-1">
+                          <Coins className="w-3.5 h-3.5" /> {goldPrice.toLocaleString()} Gold
+                        </span>
+                      )}
+                      {gemsPrice > 0 && (
+                        <span className="text-cyan-400 flex items-center gap-1">
+                          <Gem className="w-3.5 h-3.5" /> {gemsPrice.toLocaleString()} Gems
+                        </span>
+                      )}
                     </div>
 
                     <button
@@ -283,7 +330,7 @@ export const StorePanel: React.FC<StorePanelProps> = ({
                           : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
                       }`}
                     >
-                      Buy Gear
+                      Buy Weapon
                     </button>
                   </div>
                 </div>
