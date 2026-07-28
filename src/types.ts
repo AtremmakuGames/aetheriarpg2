@@ -80,6 +80,43 @@ export interface Resources {
   cosmicOrb: number;
   healingPotions: number;
   afkFarmerCharges: number;
+  hunger: number; // 0 - 100
+  hoeTier: number; // 1 = Wood, 2 = Iron, 3 = Mythril, 4 = Dragon, 5 = Prismatic
+}
+
+export interface FarmCropPlot {
+  id: string;
+  cropType: 'wheat' | 'carrot' | 'golden_berry' | 'starflower';
+  name: string;
+  growthTimeSec: number;
+  plantedAt: number | null; // timestamp
+  ready: boolean;
+  goldReward: number;
+  gemsReward: number;
+  emoji: string;
+}
+
+export interface HoeQuest {
+  id: string;
+  title: string;
+  description: string;
+  targetCount: number;
+  currentCount: number;
+  rewardGems: number;
+  completed: boolean;
+  type: 'plant' | 'upgrade_hoe' | 'defeat_boss' | 'eat_food';
+}
+
+export interface FarmBoss {
+  id: string;
+  name: string;
+  emoji: string;
+  maxHp: number;
+  currentHp: number;
+  attackDmg: number;
+  rewardGold: number;
+  rewardGems: number;
+  level: number;
 }
 
 export interface GatheringNode {

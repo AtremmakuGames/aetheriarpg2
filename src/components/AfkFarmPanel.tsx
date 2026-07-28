@@ -8,7 +8,8 @@ interface AfkFarmPanelProps {
   onBuyAfkFarmer: () => void;
   onActivateAfkFarmer: () => void;
   isAfkActive: boolean;
-  afkTimeRemaining: number;
+  afkTimeRemaining?: number;
+  afkTimeLeft?: number;
   activeZoneName: string;
   onUseHealingPotion: () => void;
 }
@@ -19,12 +20,16 @@ export const AfkFarmPanel: React.FC<AfkFarmPanelProps> = ({
   onActivateAfkFarmer,
   isAfkActive,
   afkTimeRemaining,
+  afkTimeLeft,
   activeZoneName,
   onUseHealingPotion,
 }) => {
+  const currentSecs = afkTimeRemaining !== undefined ? afkTimeRemaining : (afkTimeLeft !== undefined ? afkTimeLeft : 0);
+
   const formatTime = (secs: number) => {
-    const mins = Math.floor(secs / 60);
-    const s = secs % 60;
+    const totalSecs = Math.max(0, Math.floor(Number(secs) || 0));
+    const mins = Math.floor(totalSecs / 60);
+    const s = totalSecs % 60;
     return `${mins.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
@@ -145,7 +150,7 @@ export const AfkFarmPanel: React.FC<AfkFarmPanelProps> = ({
               {isAfkActive ? (
                 <div className="text-4xl sm:text-5xl font-mono font-black text-emerald-400 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)] flex items-center justify-center gap-2">
                   <Clock className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-400 animate-spin-slow" />
-                  <span>{formatTime(afkTimeRemaining)}</span>
+                  <span>{formatTime(currentSecs)}</span>
                 </div>
               ) : (
                 <div className="text-3xl sm:text-4xl font-mono font-black text-slate-600">
@@ -167,7 +172,7 @@ export const AfkFarmPanel: React.FC<AfkFarmPanelProps> = ({
             {isAfkActive ? (
               <div className="bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 font-black text-xs py-3 rounded-xl flex items-center justify-center gap-2">
                 <Sparkles className="w-4 h-4 text-emerald-400 animate-spin" />
-                <span>AFK Farmer Running ({formatTime(afkTimeRemaining)})</span>
+                <span>AFK Farmer Running ({formatTime(currentSecs)})</span>
               </div>
             ) : (
               <button

@@ -9,6 +9,8 @@ import { InventoryPanel } from './components/InventoryPanel';
 import { SkillTreePanel } from './components/SkillTreePanel';
 import { AchievementsPanel } from './components/AchievementsPanel';
 import { AfkFarmPanel } from './components/AfkFarmPanel';
+import { StorePanel } from './components/StorePanel';
+import { FarmDimensionPanel } from './components/FarmDimensionPanel';
 import { sound } from './audio';
 import {
   Shield,
@@ -24,6 +26,10 @@ import {
   Package,
   Volume2,
   VolumeX,
+  ShoppingBag,
+  Sprout,
+  Utensils,
+  Apple,
 } from 'lucide-react';
 
 export default function App() {
@@ -147,6 +153,18 @@ export default function App() {
       );
     }, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Hunger System Ticker (decreases hunger by 1 every 15 seconds if > 0)
+  useEffect(() => {
+    const hungerTimer = setInterval(() => {
+      setResources((prev) => {
+        const curHunger = prev.hunger !== undefined ? prev.hunger : 100;
+        if (curHunger <= 0) return prev;
+        return { ...prev, hunger: Math.max(0, curHunger - 1) };
+      });
+    }, 15000);
+    return () => clearInterval(hungerTimer);
   }, []);
 
   // Companion Pet Auto-Gathering Ticker (every 3 sec if pet equipped)
@@ -535,6 +553,83 @@ export default function App() {
     );
   };
 
+  // Store: Buy Prismatic Merchant Gear with Gold
+  const handleBuyPrismaticGear = (item: EquipmentItem) => {
+    const goldCost = item.cost.gold || 0;
+    if (resources.gold < goldCost) return;
+
+    setResources((prev) => ({ ...prev, gold: prev.gold - goldCost }));
+    setInventory((prev) => [...prev, item]);
+  };
+
+  // Store: Exchange Gems for Gold
+  const handleExchangeGemsForGold = (gemsAmount: number, goldAmount: number) => {
+    if (resources.gems < gemsAmount) return;
+    setResources((prev) => ({
+      ...prev,
+      gems: prev.gems - gemsAmount,
+      gold: prev.gold + goldAmount,
+    }));
+  };
+
+  // Store: Buy EXP Potion (+1 Level for 750 Gems)
+  const handleBuyExpPotion = () => {
+    if (resources.gems < 750) return;
+    setResources((prev) => ({ ...prev, gems: prev.gems - 750 }));
+    addXP(character.xpToNextLevel); // Instantly grants full XP for level up
+  };
+
+  // Store: Buy Food
+  const handleBuyFood = (
+    foodName: string,
+    hungerRestore: number,
+    goldCost: number,
+    gemsCost: number,
+    hpHeal: number = 0
+  ) => {
+    if (goldCost > 0 && resources.gold < goldCost) return;
+    if (gemsCost > 0 && resources.gems < gemsCost) return;
+
+    setResources((prev) => ({
+      ...prev,
+      gold: goldCost > 0 ? prev.gold - goldCost : prev.gold,
+      gems: gemsCost > 0 ? prev.gems - gemsCost : prev.gems,
+      hunger: Math.min(100, (prev.hunger || 0) + hungerRestore),
+    }));
+  };
+
+  // Farm: Upgrade Hoe with Gems ONLY
+  const handleUpgradeHoeWithGems = (gemCost: number, nextTier: number) => {
+    if (resources.gems < gemCost) return;
+    setResources((prev) => ({
+      ...prev,
+      gems: prev.gems - gemCost,
+      hoeTier: nextTier,
+    }));
+  };
+
+  // Farm: Harvest Crop
+  const handleHarvestCrop = (goldAmount: number, gemsAmount: number, cropName: string) => {
+    setResources((prev) => ({
+      ...prev,
+      gold: prev.gold + goldAmount,
+      gems: prev.gems + gemsAmount,
+    }));
+  };
+
+  // Farm: Claim Quest Reward
+  const handleClaimQuestReward = (questId: string, rewardGems: number) => {
+    setResources((prev) => ({
+      ...prev,
+      gems: prev.gems + rewardGems,
+    }));
+  };
+
+  // Farm: Attack Boss
+  const handleAttackFarmBoss = (dmg: number) => {
+    setStats((s) => ({ ...s, totalDamageDealt: s.totalDamageDealt + dmg }));
+  };
+
   const activeZone = GATHERING_ZONES[activeZoneIndex];
 
   // Portal Travel Handler
@@ -603,6 +698,11 @@ export default function App() {
             <span>{resources.gems.toLocaleString()}</span>
           </div>
 
+          <div className="bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 text-rose-300 flex items-center gap-1 font-mono font-bold" title="Hero Hunger Level">
+            <Apple className="w-3.5 h-3.5 text-rose-400" />
+            <span>{resources.hunger !== undefined ? resources.hunger : 100}%</span>
+          </div>
+
           <div className="bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 text-emerald-300 flex items-center gap-1">
             <TreePine className="w-3.5 h-3.5 text-emerald-400" />
             <span>{resources.wood}</span>
@@ -624,6 +724,8 @@ export default function App() {
       <div className="bg-slate-950 border-b border-slate-800 p-2 flex items-center justify-start gap-1 overflow-x-auto z-30">
         {[
           { id: 'canvas', label: 'Gathering Realm', icon: Pickaxe },
+          { id: 'store', label: 'Merchant Store', icon: ShoppingBag },
+          { id: 'farm', label: 'Farm Realm', icon: Sprout },
           { id: 'afk', label: 'AFK Auto-Farm', icon: Zap },
           { id: 'inventory', label: 'Inventory & Gear', icon: Package },
           { id: 'character', label: 'Hero & Stats', icon: Shield },
@@ -708,6 +810,28 @@ export default function App() {
               activeZoneId={activeZone.id}
             />
           </div>
+        )}
+
+        {activeTab === 'store' && (
+          <StorePanel
+            resources={resources}
+            character={character}
+            onBuyPrismaticGear={handleBuyPrismaticGear}
+            onExchangeGemsForGold={handleExchangeGemsForGold}
+            onBuyExpPotion={handleBuyExpPotion}
+            onBuyFood={handleBuyFood}
+          />
+        )}
+
+        {activeTab === 'farm' && (
+          <FarmDimensionPanel
+            resources={resources}
+            character={character}
+            onUpgradeHoeWithGems={handleUpgradeHoeWithGems}
+            onHarvestCrop={handleHarvestCrop}
+            onClaimQuestReward={handleClaimQuestReward}
+            onAttackFarmBoss={handleAttackFarmBoss}
+          />
         )}
 
         {activeTab === 'afk' && (

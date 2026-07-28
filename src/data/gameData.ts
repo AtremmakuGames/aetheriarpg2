@@ -48,6 +48,8 @@ export const INITIAL_RESOURCES: Resources = {
   cosmicOrb: 0,
   healingPotions: 3,
   afkFarmerCharges: 0,
+  hunger: 100,
+  hoeTier: 1,
 };
 
 export const GATHERING_ZONES: GatheringZone[] = [

@@ -158,6 +158,35 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     return () => cancelAnimationFrame(animationFrameId);
   }, [zone]);
 
+  // Hostile Mobs Auto-Attack Loop (Monsters automatically strike hero every 2.8s)
+  useEffect(() => {
+    const mobAttackTimer = setInterval(() => {
+      const activeMob = nodes.find((n) => n.isMob && n.currentHp > 0);
+      if (!activeMob) return;
+
+      const rawMobDmg = activeMob.mobAttack || 30;
+      const armorDef = character.equipped.armor?.statBonus.vitality || 0;
+      const mobDmgToHero = Math.max(6, Math.floor(rawMobDmg - armorDef * 0.4));
+
+      setHeroHp((prevHp) => {
+        const nextHp = Math.max(0, prevHp - mobDmgToHero);
+        if (nextHp <= 0) {
+          sound.playClick();
+          setSkillNotice(`🛡️ Hero was defeated by ${activeMob.name}! Respawned with full HP.`);
+          setTimeout(() => setSkillNotice(null), 3000);
+          return maxHeroHp;
+        }
+        return nextHp;
+      });
+
+      const containerRect = containerRef.current?.getBoundingClientRect();
+      const hPx = containerRect ? containerRect.height - 70 : 380;
+      spawnFloatingText(`💥 ${activeMob.mobEmoji || '👹'} -${mobDmgToHero} HP`, 80, hPx, true, '#ef4444');
+    }, 2800);
+
+    return () => clearInterval(mobAttackTimer);
+  }, [nodes, character.equipped.armor, maxHeroHp]);
+
   // Spawn floating text popups with smooth auto-fade and cleanup
   const spawnFloatingText = (text: string, xPx: number, yPx: number, isCrit: boolean = false, color?: string) => {
     const textId = Math.random().toString();
@@ -375,8 +404,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const width = containerRect ? containerRect.width : 500;
     const height = containerRect ? containerRect.height : 380;
 
-    // Trigger floating texts and particle bursts for all active nodes harvested by skill
-    nodes.forEach((node) => {
+    // Trigger floating texts and particle bursts for non-portal active nodes harvested by skill
+    nodes.filter((n) => !n.isPortal).forEach((node) => {
       if (node.currentHp > 0) {
         const xPx = (node.x / 100) * width;
         const yPx = (node.y / 100) * height;
@@ -390,6 +419,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
         const yieldAmount = Math.floor((node.resourceYield + extraGearYield) * (1 + character.attributes.gatheringSpeed * 0.02) * mult * classBonus);
         const xpGained = Math.floor(15 * mult);
+
+        // Award harvest for non-portal node
+        onHarvestNode(node, true, mult);
 
         spawnFloatingText(
           `⚡ ${skill.name.toUpperCase()}! +${yieldAmount} ${node.type.toUpperCase()} (+${xpGained} XP)`,
@@ -408,17 +440,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       }
     });
 
-    // Damage all current nodes on canvas to 0
+    // Damage non-portal nodes on canvas to 0
     setNodes((prev) =>
-      prev.map((n) => ({
-        ...n,
-        currentHp: 0,
-      }))
+      prev.map((n) => (n.isPortal ? n : { ...n, currentHp: 0 }))
     );
 
     // Respawn nodes after 2.5s
     setTimeout(() => {
-      setNodes((prev) => prev.map((n) => ({ ...n, currentHp: n.maxHp })));
+      setNodes((prev) => prev.map((n) => (n.isPortal ? n : { ...n, currentHp: n.maxHp })));
     }, 2500);
   };
 
