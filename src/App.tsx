@@ -49,13 +49,27 @@ export default function App() {
   const [resources, setResources] = useState<Resources>(() => {
     const saved = localStorage.getItem('aetheria_resources');
     if (saved) {
-      const parsed = JSON.parse(saved);
-      return {
-        ...INITIAL_RESOURCES,
-        ...parsed,
-        hunger: parsed.hunger !== undefined ? parsed.hunger : 100,
-        hoeTier: parsed.hoeTier !== undefined && parsed.hoeTier > 0 ? Number(parsed.hoeTier) : 1,
-      };
+      try {
+        const parsed = JSON.parse(saved);
+        // Helper to sanitize & clamp corrupted/astronomical numbers
+        const sanitizeNumber = (val: any, defaultVal: number, maxCap: number = 10000000) => {
+          const num = Number(val);
+          if (isNaN(num) || !isFinite(num) || num < 0) return defaultVal;
+          if (num > maxCap) return defaultVal; // Clamp quadrillion bugs back to sane amount
+          return num;
+        };
+
+        return {
+          ...INITIAL_RESOURCES,
+          ...parsed,
+          gold: sanitizeNumber(parsed.gold, INITIAL_RESOURCES.gold, 50000000),
+          gems: sanitizeNumber(parsed.gems, 1000, 50000), // Fix 20 quadrillion gems bug
+          hunger: parsed.hunger !== undefined ? sanitizeNumber(parsed.hunger, 100, 100) : 100,
+          hoeTier: parsed.hoeTier !== undefined && parsed.hoeTier > 0 ? Number(parsed.hoeTier) : 1,
+        };
+      } catch (e) {
+        console.error('Error parsing resources', e);
+      }
     }
     return INITIAL_RESOURCES;
   });
@@ -85,9 +99,39 @@ export default function App() {
     itemsCrafted: 0,
   });
 
-  // AFK Auto-Farm State
-  const [isAfkActive, setIsAfkActive] = useState<boolean>(false);
-  const [afkTimeLeft, setAfkTimeLeft] = useState<number>(0);
+  // Real Timestamp AFK Auto-Farm State
+  const [afkEndTime, setAfkEndTime] = useState<number | null>(() => {
+    const savedEndTime = localStorage.getItem('aetheria_afk_end_time');
+    if (savedEndTime) {
+      const endTimeNum = Number(savedEndTime);
+      if (!isNaN(endTimeNum) && endTimeNum > Date.now()) {
+        return endTimeNum;
+      }
+    }
+    return null;
+  });
+
+  const [isAfkActive, setIsAfkActive] = useState<boolean>(() => {
+    const savedActive = localStorage.getItem('aetheria_afk_active');
+    const savedEndTime = localStorage.getItem('aetheria_afk_end_time');
+    if (savedActive === 'true' && savedEndTime) {
+      const endTimeNum = Number(savedEndTime);
+      return !isNaN(endTimeNum) && endTimeNum > Date.now();
+    }
+    return false;
+  });
+
+  const [afkTimeLeft, setAfkTimeLeft] = useState<number>(() => {
+    const savedEndTime = localStorage.getItem('aetheria_afk_end_time');
+    if (savedEndTime) {
+      const endTimeNum = Number(savedEndTime);
+      if (!isNaN(endTimeNum) && endTimeNum > Date.now()) {
+        return Math.max(0, Math.ceil((endTimeNum - Date.now()) / 1000));
+      }
+    }
+    return 0;
+  });
+
   const [afkLogs, setAfkLogs] = useState<string[]>([]);
 
   // Auto Local Storage Persistence
@@ -99,39 +143,93 @@ export default function App() {
     localStorage.setItem('aetheria_inventory', JSON.stringify(inventory));
   }, [character, resources, skills, achievements, inventory]);
 
-  // AFK Farmer Timer & High-Speed Gathering Loop (0.3s tick)
+  // Real-Time Wall-Clock AFK Countdown Timer
   useEffect(() => {
-    if (!isAfkActive || afkTimeLeft <= 0) return;
+    if (!isAfkActive || !afkEndTime) {
+      setAfkTimeLeft(0);
+      return;
+    }
 
-    // 1-second countdown interval
-    const countdownTimer = setInterval(() => {
-      setAfkTimeLeft((prev) => {
-        if (prev <= 1) {
-          setIsAfkActive(false);
-          setAfkLogs((logs) => [`[SYSTEM] ⏰ AFK Farmer duration completed!`, ...logs.slice(0, 20)]);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    const syncAfkTimer = () => {
+      const now = Date.now();
+      const remaining = Math.max(0, Math.ceil((afkEndTime - now) / 1000));
+      setAfkTimeLeft(remaining);
 
-    // Rapid AFK Gathering Loop (every 300ms)
+      if (remaining <= 0) {
+        setIsAfkActive(false);
+        setAfkEndTime(null);
+        setAfkTimeLeft(0);
+        localStorage.removeItem('aetheria_afk_end_time');
+        localStorage.removeItem('aetheria_afk_active');
+        setAfkLogs((prev) => [`[SYSTEM] ⏰ AFK Farmer 5-minute timer completed!`, ...prev.slice(0, 20)]);
+      }
+    };
+
+    syncAfkTimer();
+    const timerInterval = setInterval(syncAfkTimer, 1000);
+
+    // Synchronize time when tablet screen turns back on or browser tab gains focus
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncAfkTimer();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(timerInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isAfkActive, afkEndTime]);
+
+  // Real-Time Wall-Clock AFK Gathering Loop (0.5s tick with strict time expiration)
+  useEffect(() => {
+    if (!isAfkActive || !afkEndTime) return;
+
     const gatherLoop = setInterval(() => {
+      const now = Date.now();
+      if (now >= afkEndTime) {
+        setIsAfkActive(false);
+        setAfkEndTime(null);
+        setAfkTimeLeft(0);
+        localStorage.removeItem('aetheria_afk_end_time');
+        localStorage.removeItem('aetheria_afk_active');
+        return;
+      }
+
       const curZone = GATHERING_ZONES[activeZoneIndex];
       const validNodes = curZone.nodes.filter((n) => !n.isPortal);
       if (validNodes.length === 0) return;
 
       const randomNode = validNodes[Math.floor(Math.random() * validNodes.length)];
-      const isCrit = Math.random() < 0.25;
-      const mult = isCrit ? 2.5 : 1.2;
+      const isCrit = Math.random() < 0.20;
+      const mult = isCrit ? 2.0 : 1.0;
       const amount = Math.floor((randomNode.resourceYield + 5) * mult);
-      const xpAmount = Math.floor(20 * mult);
+      const xpAmount = Math.floor(15 * mult);
 
-      setResources((prev) => ({
-        ...prev,
-        [randomNode.type]: (prev[randomNode.type as keyof Resources] || 0) + amount,
-        gold: prev.gold + Math.floor(amount * 1.5),
-      }));
+      setResources((prev) => {
+        const curYield = prev[randomNode.type as keyof Resources] || 0;
+        const newYield = Math.min(9999999, curYield + amount);
+        const newGold = Math.min(999999999, prev.gold + Math.floor(amount * 1.2));
+
+        const updated: Resources = {
+          ...prev,
+          [randomNode.type]: newYield,
+          gold: newGold,
+        };
+
+        // Strict gem drop cap to prevent any possible resource overflow
+        if (randomNode.bonusYieldItem && Math.random() < randomNode.bonusChance) {
+          const bKey = randomNode.bonusYieldItem as keyof Resources;
+          const bCur = prev[bKey] || 0;
+          const bAdd = bKey === 'gems' ? Math.min(3, Math.floor(amount * 0.1) + 1) : Math.floor(amount * 0.5 + 1);
+          const maxVal = bKey === 'gems' ? 50000 : 9999999;
+          updated[bKey] = Math.min(maxVal, bCur + bAdd);
+        }
+
+        return updated;
+      });
 
       addXP(xpAmount);
       setStats((s) => ({ ...s, totalHarvests: s.totalHarvests + 1 }));
@@ -140,14 +238,11 @@ export default function App() {
         ? `⚡ AFK CRIT HARVEST! +${amount} ${randomNode.type.toUpperCase()} & +${xpAmount} XP (${curZone.name})`
         : `⚙️ Auto-Farm: +${amount} ${randomNode.type.toUpperCase()} (+${xpAmount} XP)`;
 
-      setAfkLogs((prev) => [logMsg, ...prev.slice(0, 25)]);
-    }, 300);
+      setAfkLogs((prev) => [logMsg, ...prev.slice(0, 20)]);
+    }, 500);
 
-    return () => {
-      clearInterval(countdownTimer);
-      clearInterval(gatherLoop);
-    };
-  }, [isAfkActive, afkTimeLeft, activeZoneIndex]);
+    return () => clearInterval(gatherLoop);
+  }, [isAfkActive, afkEndTime, activeZoneIndex]);
 
   // Skill Cooldown Ticker (1 sec interval)
   useEffect(() => {
@@ -425,16 +520,26 @@ export default function App() {
     }));
   };
 
-  // Activate AFK Farmer (5 minutes = 300 seconds)
+  // Activate AFK Farmer (5 minutes = 300 seconds based on real timestamp)
   const handleActivateAfkFarmer = () => {
     if ((resources.afkFarmerCharges || 0) <= 0 || isAfkActive) return;
     sound.playSkillCast();
+
+    const durationMs = 300 * 1000;
+    const endTime = Date.now() + durationMs;
+
     setResources((prev) => ({
       ...prev,
       afkFarmerCharges: Math.max(0, (prev.afkFarmerCharges || 0) - 1),
     }));
+
+    setAfkEndTime(endTime);
     setIsAfkActive(true);
     setAfkTimeLeft(300);
+
+    localStorage.setItem('aetheria_afk_end_time', endTime.toString());
+    localStorage.setItem('aetheria_afk_active', 'true');
+
     setAfkLogs((prev) => [`⚡ AFK Farmer activated for 5 minutes! Farming ${GATHERING_ZONES[activeZoneIndex].name}`, ...prev]);
   };
 
