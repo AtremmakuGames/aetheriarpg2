@@ -11,6 +11,7 @@ import { AchievementsPanel } from './components/AchievementsPanel';
 import { AfkFarmPanel } from './components/AfkFarmPanel';
 import { StorePanel } from './components/StorePanel';
 import { FarmDimensionPanel } from './components/FarmDimensionPanel';
+import { ResetGamePanel } from './components/ResetGamePanel';
 import { sound } from './audio';
 import {
   Shield,
@@ -30,6 +31,7 @@ import {
   Sprout,
   Utensils,
   Apple,
+  RotateCcw,
 } from 'lucide-react';
 
 export default function App() {
@@ -294,36 +296,39 @@ export default function App() {
 
   // XP & Level Up Logic
   const addXP = (amount: number) => {
-    let newXp = character.xp + amount;
-    let newLevel = character.level;
-    let newXpReq = character.xpToNextLevel;
-    let newStatPts = character.statPoints;
-    let newSkillPts = character.skillPoints;
-    let leveledUp = false;
+    if (amount <= 0) return;
+    setCharacter((prev) => {
+      let newXp = prev.xp + amount;
+      let newLevel = prev.level;
+      let newXpReq = prev.xpToNextLevel || (newLevel * 120 + 60);
+      let newStatPts = prev.statPoints;
+      let newSkillPts = prev.skillPoints;
+      let leveledUp = false;
 
-    while (newXp >= newXpReq) {
-      newXp -= newXpReq;
-      newLevel += 1;
-      newXpReq = newLevel * 120 + 60;
-      newStatPts += 3;
-      newSkillPts += 1;
-      leveledUp = true;
-    }
+      while (newXp >= newXpReq) {
+        newXp -= newXpReq;
+        newLevel += 1;
+        newXpReq = newLevel * 120 + 60;
+        newStatPts += 3;
+        newSkillPts += 1;
+        leveledUp = true;
+      }
 
-    if (leveledUp) {
-      sound.playLevelUp();
-      checkAchievements('level', newLevel);
-    }
+      if (leveledUp) {
+        sound.playLevelUp();
+        setTimeout(() => checkAchievements('level', newLevel), 0);
+      }
 
-    setCharacter((prev) => ({
-      ...prev,
-      level: newLevel,
-      xp: newXp,
-      xpToNextLevel: newXpReq,
-      statPoints: newStatPts,
-      skillPoints: newSkillPts,
-      title: newLevel >= 20 ? 'Master Realm Crafter' : newLevel >= 10 ? 'Aether Veteran' : 'Novice Adventurer',
-    }));
+      return {
+        ...prev,
+        level: newLevel,
+        xp: newXp,
+        xpToNextLevel: newXpReq,
+        statPoints: newStatPts,
+        skillPoints: newSkillPts,
+        title: newLevel >= 20 ? 'Master Realm Crafter' : newLevel >= 10 ? 'Aether Veteran' : 'Novice Adventurer',
+      };
+    });
   };
 
   // Achievement Verification Helper
@@ -689,8 +694,56 @@ export default function App() {
   // Store: Buy EXP Potion (+1 Level for 750 Gems)
   const handleBuyExpPotion = () => {
     if (resources.gems < 750) return;
-    setResources((prev) => ({ ...prev, gems: prev.gems - 750 }));
-    addXP(character.xpToNextLevel); // Instantly grants full XP for level up
+    setResources((prev) => ({ ...prev, gems: Math.max(0, prev.gems - 750) }));
+    setCharacter((prev) => {
+      const xpToLevel = prev.xpToNextLevel || (prev.level * 120 + 60);
+      const neededXp = Math.max(1, xpToLevel - prev.xp);
+      let newXp = prev.xp + neededXp;
+      let newLevel = prev.level;
+      let newXpReq = xpToLevel;
+      let newStatPts = prev.statPoints;
+      let newSkillPts = prev.skillPoints;
+      let leveledUp = false;
+
+      while (newXp >= newXpReq) {
+        newXp -= newXpReq;
+        newLevel += 1;
+        newXpReq = newLevel * 120 + 60;
+        newStatPts += 3;
+        newSkillPts += 1;
+        leveledUp = true;
+      }
+
+      sound.playLevelUp();
+      if (leveledUp) {
+        setTimeout(() => checkAchievements('level', newLevel), 0);
+      }
+
+      return {
+        ...prev,
+        level: newLevel,
+        xp: newXp,
+        xpToNextLevel: newXpReq,
+        statPoints: newStatPts,
+        skillPoints: newSkillPts,
+        title: newLevel >= 20 ? 'Master Realm Crafter' : newLevel >= 10 ? 'Aether Veteran' : 'Novice Adventurer',
+      };
+    });
+  };
+
+  // Reset Entire Game Progress
+  const handleResetGame = () => {
+    localStorage.clear();
+    setResources(INITIAL_RESOURCES);
+    setCharacter(INITIAL_CHARACTER);
+    setSkills(INITIAL_SKILLS);
+    setAchievements(INITIAL_ACHIEVEMENTS);
+    setInventory(STARTER_INVENTORY);
+    setIsAfkActive(false);
+    setAfkEndTime(null);
+    setAfkTimeLeft(0);
+    setAfkLogs([]);
+    setActiveTab('canvas');
   };
 
   // Store: Buy Food
@@ -846,6 +899,7 @@ export default function App() {
           { id: 'forge', label: 'Blacksmith Forge', icon: Hammer },
           { id: 'skills', label: 'Skill Matrix', icon: Sparkles },
           { id: 'achievements', label: 'Achievements', icon: Trophy },
+          { id: 'reset', label: 'Reset Game', icon: RotateCcw },
         ].map(({ id, label, icon: IconComp }) => {
           const isActive = activeTab === id;
 
@@ -1007,6 +1061,15 @@ export default function App() {
           <AchievementsPanel
             achievements={achievements}
             onClaimReward={handleClaimReward}
+          />
+        )}
+
+        {activeTab === 'reset' && (
+          <ResetGamePanel
+            character={character}
+            resources={resources}
+            inventoryCount={inventory.length}
+            onResetGame={handleResetGame}
           />
         )}
       </div>
