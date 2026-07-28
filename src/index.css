@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@keyframes floatAndFadeOut {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(0.9);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -20px) scale(1.15);
+  }
+  75% {
+    opacity: 0.85;
+    transform: translate(-50%, -55px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -80px) scale(0.85);
+  }
+}
+
+.animate-float-fade {
+  animation: floatAndFadeOut 2.8s ease-out forwards;
+}

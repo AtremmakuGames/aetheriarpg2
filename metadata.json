@@ -1,0 +1,6 @@
+{
+  "name": "Aetheria RPG: iPad Hero & Resource Quest",
+  "description": "Cross-platform iPad RPG with character progression, resource gathering, skill trees, achievements, global leaderboards, and cloud save synchronization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
