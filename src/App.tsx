@@ -48,7 +48,16 @@ export default function App() {
   // Resources State
   const [resources, setResources] = useState<Resources>(() => {
     const saved = localStorage.getItem('aetheria_resources');
-    return saved ? JSON.parse(saved) : INITIAL_RESOURCES;
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        ...INITIAL_RESOURCES,
+        ...parsed,
+        hunger: parsed.hunger !== undefined ? parsed.hunger : 100,
+        hoeTier: parsed.hoeTier !== undefined && parsed.hoeTier > 0 ? Number(parsed.hoeTier) : 1,
+      };
+    }
+    return INITIAL_RESOURCES;
   });
 
   // Skills State

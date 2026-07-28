@@ -62,7 +62,7 @@ export const FarmDimensionPanel: React.FC<FarmDimensionPanelProps> = ({
   // Quests State
   const [quests, setQuests] = useState<HoeQuest[]>([
     { id: 'quest_1', title: 'First Harvest', description: 'Plant and harvest any 3 crop plots on the Farm.', targetCount: 3, currentCount: 0, rewardGems: 100, completed: false, type: 'plant' },
-    { id: 'quest_2', title: 'Iron Hoe Upgrade', description: 'Upgrade your Hoe to Tier 2 (Iron Hoe) using Gems.', targetCount: 2, currentCount: resources.hoeTier, rewardGems: 250, completed: resources.hoeTier >= 2, type: 'upgrade_hoe' },
+    { id: 'quest_2', title: 'Iron Hoe Upgrade', description: 'Upgrade your Hoe to Tier 2 (Iron Hoe) using Gems.', targetCount: 2, currentCount: resources.hoeTier || 1, rewardGems: 250, completed: (resources.hoeTier || 1) >= 2, type: 'upgrade_hoe' },
     { id: 'quest_3', title: 'Golden Berry Master', description: 'Harvest 5 Golden Berries or Starflowers.', targetCount: 5, currentCount: 0, rewardGems: 400, completed: false, type: 'plant' },
     { id: 'quest_4', title: 'Defeat Mad Boss Bull 🐂', description: 'Slay the Mad Boss Bull in the Farm Boss arena.', targetCount: 1, currentCount: 0, rewardGems: 600, completed: false, type: 'defeat_boss' },
   ]);
@@ -190,8 +190,9 @@ export const FarmDimensionPanel: React.FC<FarmDimensionPanelProps> = ({
     }
   };
 
-  const currentHoeInfo = HOE_TIERS.find((h) => h.tier === resources.hoeTier) || HOE_TIERS[0];
-  const nextHoeInfo = HOE_TIERS.find((h) => h.tier === resources.hoeTier + 1);
+  const currentHoeTier = Math.max(1, Number(resources.hoeTier) || 1);
+  const currentHoeInfo = HOE_TIERS.find((h) => h.tier === currentHoeTier) || HOE_TIERS[0];
+  const nextHoeInfo = HOE_TIERS.find((h) => h.tier === currentHoeTier + 1);
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-6 select-none">
@@ -215,17 +216,37 @@ export const FarmDimensionPanel: React.FC<FarmDimensionPanelProps> = ({
         </div>
 
         {/* Currency & Hoe Status */}
-        <div className="flex items-center gap-3 bg-slate-950 p-2.5 px-4 rounded-xl border border-slate-800 font-mono text-xs">
+        <div className="flex items-center gap-3 bg-slate-950 p-2.5 px-4 rounded-xl border border-slate-800 font-mono text-xs flex-wrap">
           <div className="text-emerald-400 font-bold flex items-center gap-1">
             <Sprout className="w-4 h-4" />
             <span>Hoe: {currentHoeInfo.name} ({currentHoeInfo.mult})</span>
           </div>
-          <div className="h-4 w-px bg-slate-800"></div>
+
+          {nextHoeInfo && (
+            <button
+              onClick={() => {
+                if (resources.gems >= nextHoeInfo.gemCost) {
+                  sound.playLevelUp();
+                  onUpgradeHoeWithGems(nextHoeInfo.gemCost, nextHoeInfo.tier);
+                  showNotice(`✨ Upgraded Hoe to ${nextHoeInfo.name}! Crop Yield is now ${nextHoeInfo.mult}!`);
+                } else {
+                  setActiveSubTab('hoe');
+                  showNotice(`💎 Need ${nextHoeInfo.gemCost} Gems to upgrade to ${nextHoeInfo.name}! You have ${resources.gems} Gems.`);
+                }
+              }}
+              className="px-3 py-1 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-slate-950 font-black text-xs rounded-lg shadow-md transition-all flex items-center gap-1 animate-pulse"
+            >
+              <Gem className="w-3.5 h-3.5" />
+              <span>Upgrade Hoe ({nextHoeInfo.gemCost} Gems)</span>
+            </button>
+          )}
+
+          <div className="h-4 w-px bg-slate-800 hidden sm:block"></div>
           <div className="text-amber-400 font-bold flex items-center gap-1">
             <Coins className="w-3.5 h-3.5" />
             <span>{resources.gold.toLocaleString()} Gold</span>
           </div>
-          <div className="h-4 w-px bg-slate-800"></div>
+          <div className="h-4 w-px bg-slate-800 hidden sm:block"></div>
           <div className="text-cyan-400 font-bold flex items-center gap-1">
             <Gem className="w-3.5 h-3.5" />
             <span>{resources.gems.toLocaleString()} Gems</span>
@@ -295,6 +316,42 @@ export const FarmDimensionPanel: React.FC<FarmDimensionPanelProps> = ({
       {/* Sub-tab 1: Gardening Plots */}
       {activeSubTab === 'crops' && (
         <div className="space-y-4">
+          {/* Quick Upgrade Hoe Banner */}
+          {nextHoeInfo && (
+            <div className="bg-gradient-to-r from-cyan-950/80 via-slate-950 to-blue-950/80 p-4 rounded-xl border border-cyan-500/40 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-cyan-500/20 text-cyan-400 rounded-xl border border-cyan-500/30">
+                  <Gem className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-cyan-300">
+                    Upgrade Hoe to {nextHoeInfo.name} ({nextHoeInfo.mult} Yield Multiplier)
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Current Hoe: <span className="text-emerald-400 font-bold">{currentHoeInfo.name} ({currentHoeInfo.mult})</span> | Cost: <span className="text-cyan-400 font-mono font-bold">{nextHoeInfo.gemCost} Gems</span>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                disabled={resources.gems < nextHoeInfo.gemCost}
+                onClick={() => {
+                  sound.playLevelUp();
+                  onUpgradeHoeWithGems(nextHoeInfo.gemCost, nextHoeInfo.tier);
+                  showNotice(`✨ Upgraded Hoe to ${nextHoeInfo.name}! Crop Yield is now ${nextHoeInfo.mult}!`);
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                  resources.gems >= nextHoeInfo.gemCost
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 hover:scale-105 active:scale-95 shadow-lg shadow-cyan-950/50'
+                    : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                }`}
+              >
+                <Gem className="w-4 h-4" />
+                <span>UPGRADE HOE NOW ({nextHoeInfo.gemCost} GEMS)</span>
+              </button>
+            </div>
+          )}
+
           <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-black text-emerald-400 flex items-center gap-2">
@@ -405,9 +462,9 @@ export const FarmDimensionPanel: React.FC<FarmDimensionPanelProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {HOE_TIERS.map((hoe) => {
-              const isCurrent = resources.hoeTier === hoe.tier;
-              const isUnlocked = resources.hoeTier >= hoe.tier;
-              const isNextToUnlock = resources.hoeTier + 1 === hoe.tier;
+              const isCurrent = currentHoeTier === hoe.tier;
+              const isUnlocked = currentHoeTier >= hoe.tier;
+              const isNextToUnlock = currentHoeTier + 1 === hoe.tier;
               const canAfford = resources.gems >= hoe.gemCost;
 
               return (
