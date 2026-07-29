@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Character, EquipmentItem, HeroClass, Resources } from '../types';
 import { sound } from '../audio';
-import { Shield, Zap, Sparkles, Sword, Heart, Plus, Trophy, Award, Shirt, Lock, Coins, Gem, Check } from 'lucide-react';
+import { Shield, Zap, Sparkles, Sword, Heart, Plus, Trophy, Award, Shirt, Lock, Coins, Gem, Check, Edit2, CheckCircle2, X } from 'lucide-react';
 
 interface CharacterPanelProps {
   character: Character;
@@ -10,6 +10,7 @@ interface CharacterPanelProps {
   onChangeClass: (newClass: HeroClass) => void;
   onUnlockClass?: (heroClass: HeroClass, currency: 'gold' | 'gems') => void;
   onUnequipItem: (slot: keyof Character['equipped']) => void;
+  onUpdateNickname?: (newName: string) => void;
 }
 
 export const CharacterPanel: React.FC<CharacterPanelProps> = ({
@@ -19,7 +20,19 @@ export const CharacterPanel: React.FC<CharacterPanelProps> = ({
   onChangeClass,
   onUnlockClass,
   onUnequipItem,
+  onUpdateNickname,
 }) => {
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nicknameInput, setNicknameInput] = useState(character.name || 'Aether Hero');
+
+  const handleSaveNickname = () => {
+    sound.playClick();
+    const clean = nicknameInput.trim() || 'Aether Hero';
+    if (onUpdateNickname) {
+      onUpdateNickname(clean);
+    }
+    setIsEditingName(false);
+  };
   const statInfo = [
     { key: 'strength' as const, name: 'Strength', icon: Sword, color: 'text-red-400', desc: '+Mining Yield & Physical DMG' },
     { key: 'agility' as const, name: 'Agility', icon: Zap, color: 'text-amber-400', desc: '+Crit Rate & Attack Speed' },
@@ -49,11 +62,57 @@ export const CharacterPanel: React.FC<CharacterPanelProps> = ({
             {classDescriptions[character.heroClass].icon}
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-black text-slate-100">{character.name}</h2>
-              <span className="bg-amber-950/80 text-amber-400 text-xs px-2 py-0.5 rounded border border-amber-500/30 font-bold">
-                {character.title}
-              </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              {isEditingName ? (
+                <div className="flex items-center gap-1.5 my-1">
+                  <input
+                    type="text"
+                    value={nicknameInput}
+                    onChange={(e) => setNicknameInput(e.target.value)}
+                    maxLength={20}
+                    placeholder="Enter Hero Nickname..."
+                    className="bg-slate-950 border border-amber-500 rounded-lg px-2.5 py-1 text-sm font-bold text-white focus:outline-none"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveNickname}
+                    className="p-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg transition-all"
+                    title="Save Nickname"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      sound.playClick();
+                      setNicknameInput(character.name);
+                      setIsEditingName(false);
+                    }}
+                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-all"
+                    title="Cancel"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h2 className="text-xl font-black text-slate-100">{character.name}</h2>
+                  <button
+                    onClick={() => {
+                      sound.playClick();
+                      setNicknameInput(character.name);
+                      setIsEditingName(true);
+                    }}
+                    className="p-1 rounded-md bg-slate-800/80 hover:bg-slate-700 text-amber-400 border border-slate-700 transition-all text-xs flex items-center gap-1"
+                    title="Change Nickname"
+                  >
+                    <Edit2 className="w-3 h-3" />
+                    <span className="text-[10px] font-bold">Edit Name</span>
+                  </button>
+                  <span className="bg-amber-950/80 text-amber-400 text-xs px-2 py-0.5 rounded border border-amber-500/30 font-bold">
+                    {character.title}
+                  </span>
+                </>
+              )}
             </div>
             <p className="text-xs text-slate-400">
               Class: <span className="text-amber-400 font-bold capitalize">{character.heroClass}</span> | Level {character.level}

@@ -25,6 +25,8 @@ import {
   Check,
   KeyRound,
   Download,
+  Edit2,
+  X,
 } from 'lucide-react';
 
 interface LeaderboardPanelProps {
@@ -39,6 +41,7 @@ interface LeaderboardPanelProps {
     itemsCrafted: number;
   };
   onLoadCloudSave?: (data: UserSavePayload) => void;
+  onUpdateNickname?: (newName: string) => void;
 }
 
 export const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({
@@ -49,6 +52,7 @@ export const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({
   inventory,
   stats,
   onLoadCloudSave,
+  onUpdateNickname,
 }) => {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -62,6 +66,19 @@ export const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [importCodeInput, setImportCodeInput] = useState<string>('');
   const [importing, setImporting] = useState<boolean>(false);
+
+  // Nickname Edit State
+  const [isEditingNickname, setIsEditingNickname] = useState<boolean>(false);
+  const [nicknameInput, setNicknameInput] = useState<string>(character.name || 'Aether Hero');
+
+  const handleSaveNickname = () => {
+    sound.playClick();
+    const clean = nicknameInput.trim() || 'Aether Hero';
+    if (onUpdateNickname) {
+      onUpdateNickname(clean);
+    }
+    setIsEditingNickname(false);
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -283,10 +300,56 @@ export const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({
 
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-extrabold text-white text-base">{character.name}</span>
-                <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-md border bg-slate-950 text-amber-400 border-amber-500/30">
-                  Lvl {character.level} {character.heroClass}
-                </span>
+                {isEditingNickname ? (
+                  <div className="flex items-center gap-1.5 my-0.5">
+                    <input
+                      type="text"
+                      value={nicknameInput}
+                      onChange={(e) => setNicknameInput(e.target.value)}
+                      maxLength={20}
+                      placeholder="Enter Leaderboard Nickname..."
+                      className="bg-slate-950 border border-amber-500 rounded-lg px-2 py-0.5 text-xs font-bold text-white focus:outline-none"
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleSaveNickname}
+                      className="p-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-lg transition-all"
+                      title="Save Nickname"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        sound.playClick();
+                        setNicknameInput(character.name);
+                        setIsEditingNickname(false);
+                      }}
+                      className="p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-all"
+                      title="Cancel"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="font-extrabold text-white text-base">{character.name}</span>
+                    <button
+                      onClick={() => {
+                        sound.playClick();
+                        setNicknameInput(character.name);
+                        setIsEditingNickname(true);
+                      }}
+                      className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 transition-all text-xs flex items-center gap-1"
+                      title="Edit Leaderboard Nickname"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span className="text-[10px] font-bold">Edit Nickname</span>
+                    </button>
+                    <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-md border bg-slate-950 text-amber-400 border-amber-500/30">
+                      Lvl {character.level} {character.heroClass}
+                    </span>
+                  </>
+                )}
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-slate-400 text-xs font-medium">Your Cloud Sync Code:</span>

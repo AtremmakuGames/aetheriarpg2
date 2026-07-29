@@ -839,6 +839,15 @@ export default function App() {
     setIsMuted(muted);
   };
 
+  const handleUpdateNickname = (newName: string) => {
+    const cleanName = newName.trim() || 'Aether Hero';
+    setCharacter((prev) => {
+      const updated = { ...prev, name: cleanName };
+      localStorage.setItem('aetheria_character', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const handleLoadCloudSave = (data: UserSavePayload) => {
     if (data.character) setCharacter(data.character);
     if (data.resources) setResources(data.resources);
@@ -969,6 +978,7 @@ export default function App() {
             inventory={inventory}
             stats={stats}
             onLoadCloudSave={handleLoadCloudSave}
+            onUpdateNickname={handleUpdateNickname}
           />
         )}
 
@@ -1083,6 +1093,7 @@ export default function App() {
             onChangeClass={handleChangeClass}
             onUnlockClass={handleUnlockClass}
             onUnequipItem={handleUnequipItem}
+            onUpdateNickname={handleUpdateNickname}
           />
         )}
 
