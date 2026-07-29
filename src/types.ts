@@ -212,6 +212,8 @@ export interface LeaderboardEntry {
   combatPower: number;
   totalResourcesHarvested: number;
   achievementsUnlocked: number;
+  gold?: number;
+  score?: number;
   updatedAt: string;
   isUser?: boolean;
 }

@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Cloud Saves",
+      "description": "User character save states, progress, and inventory data",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "heroClass": { "type": "string" },
+        "level": { "type": "number" },
+        "gold": { "type": "number" },
+        "gems": { "type": "number" },
+        "score": { "type": "number" },
+        "character": { "type": "object" },
+        "resources": { "type": "object" },
+        "skills": { "type": "array" },
+        "achievements": { "type": "array" },
+        "inventory": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "displayName", "level", "gold"]
+    },
+    "leaderboard": {
+      "title": "Global Leaderboard Entries",
+      "description": "Public ranking scores and statistics for active hero accounts",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "heroClass": { "type": "string" },
+        "level": { "type": "number" },
+        "gold": { "type": "number" },
+        "score": { "type": "number" },
+        "totalHarvests": { "type": "number" },
+        "totalDamageDealt": { "type": "number" },
+        "itemsCrafted": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "displayName", "level", "score"]
+    }
+  },
+  "security": {
+    "rules": [
+      {
+        "path": "users/{userId}",
+        "read": "true",
+        "write": "true"
+      },
+      {
+        "path": "leaderboard/{userId}",
+        "read": "true",
+        "write": "true"
+      }
+    ]
+  }
+}

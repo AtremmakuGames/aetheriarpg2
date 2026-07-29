@@ -12,6 +12,8 @@ import { AfkFarmPanel } from './components/AfkFarmPanel';
 import { StorePanel } from './components/StorePanel';
 import { FarmDimensionPanel } from './components/FarmDimensionPanel';
 import { ResetGamePanel } from './components/ResetGamePanel';
+import { LeaderboardPanel } from './components/LeaderboardPanel';
+import { UserSavePayload } from './lib/databaseService';
 import { sound } from './audio';
 import {
   Shield,
@@ -20,6 +22,7 @@ import {
   Pickaxe,
   Hammer,
   Trophy,
+  Crown,
   Sparkles,
   Coins,
   TreePine,
@@ -836,6 +839,15 @@ export default function App() {
     setIsMuted(muted);
   };
 
+  const handleLoadCloudSave = (data: UserSavePayload) => {
+    if (data.character) setCharacter(data.character);
+    if (data.resources) setResources(data.resources);
+    if (data.skills) setSkills(data.skills);
+    if (data.achievements) setAchievements(data.achievements);
+    if (data.inventory) setInventory(data.inventory);
+    if (data.stats) setStats(data.stats);
+  };
+
   return (
     <IPadFrame
       activeView={activeTab}
@@ -912,6 +924,7 @@ export default function App() {
       {/* Main Tab View Navigation Row */}
       <div className="bg-slate-950 border-b border-slate-800 p-2 flex items-center justify-start gap-1 overflow-x-auto z-30">
         {[
+          { id: 'leaderboard', label: 'Leaderboard', icon: Crown },
           { id: 'canvas', label: 'Gathering Realm', icon: Pickaxe },
           { id: 'store', label: 'Merchant Store', icon: ShoppingBag },
           { id: 'farm', label: 'Farm Realm', icon: Sprout },
@@ -947,6 +960,18 @@ export default function App() {
 
       {/* Main Content Display Area */}
       <div className="flex-1 p-3 sm:p-5 overflow-y-auto z-20 space-y-4">
+        {activeTab === 'leaderboard' && (
+          <LeaderboardPanel
+            character={character}
+            resources={resources}
+            skills={skills}
+            achievements={achievements}
+            inventory={inventory}
+            stats={stats}
+            onLoadCloudSave={handleLoadCloudSave}
+          />
+        )}
+
         {activeTab === 'canvas' && (
           <div className="space-y-4">
             {/* Zone Selector Selector Bar */}
