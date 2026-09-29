@@ -9,6 +9,7 @@ import {
   getDoc,
   collection,
   getDocs,
+  getDocsFromServer,
   query,
   where,
   orderBy,
@@ -360,9 +361,10 @@ export interface AdminPlayerRecord {
 
 // Merge the `users` (save files) and `leaderboard` collections into one list keyed by uid
 export async function adminFetchPlayers(): Promise<AdminPlayerRecord[]> {
+  // Server-only reads: when offline, getDocs would silently return an empty cached result
   const [usersSnap, lbSnap] = await Promise.all([
-    getDocs(query(collection(db, 'users'), limit(500))),
-    getDocs(query(collection(db, 'leaderboard'), limit(500))),
+    getDocsFromServer(query(collection(db, 'users'), limit(500))),
+    getDocsFromServer(query(collection(db, 'leaderboard'), limit(500))),
   ]);
 
   const players = new Map<string, AdminPlayerRecord>();
@@ -415,9 +417,23 @@ export interface AdminPlayerPatch {
   score?: number; // new target score; stored as an adjustment so it survives the player's next sync
 }
 
-export async function adminUpdatePlayer(player: AdminPlayerRecord, patch: AdminPlayerPatch): Promise<void> {
+// Score the client will compute on its next sync (before scoreAdjustment), from a save doc with the patch applied
+function computeBaseScore(d: any, patch: AdminPlayerPatch, damageDealt: number): number {
+  const character = { ...(d.character || {}), level: patch.level ?? d.character?.level ?? 1 };
+  const resources = {
+    ...(d.resources || {}),
+    gold: patch.gold ?? d.resources?.gold ?? 0,
+    gems: patch.gems ?? d.resources?.gems ?? 0,
+  };
+  const stats = { totalHarvests: 0, itemsCrafted: 0, ...(d.stats || {}), totalDamageDealt: damageDealt };
+  return calculatePlayerScore(character, resources, stats, Array.isArray(d.achievements) ? d.achievements : []);
+}
+
+// Returns a note for the admin when extra changes were needed to make the score stick
+export async function adminUpdatePlayer(player: AdminPlayerRecord, patch: AdminPlayerPatch): Promise<string | null> {
   const userUpdate: Record<string, unknown> = {};
   const lbUpdate: Record<string, unknown> = {};
+  let note: string | null = null;
 
   if (patch.gold !== undefined) {
     userUpdate['resources.gold'] = patch.gold;
@@ -441,9 +457,27 @@ export async function adminUpdatePlayer(player: AdminPlayerRecord, patch: AdminP
     lbUpdate.playerName = patch.playerName;
   }
   if (patch.score !== undefined) {
-    userUpdate.scoreAdjustment = player.scoreAdjustment + (patch.score - player.score);
     userUpdate.score = patch.score;
     lbUpdate.score = patch.score;
+
+    const snap = player.hasSave ? await getDoc(doc(db, 'users', player.uid)) : null;
+    if (snap?.exists()) {
+      // Adjustment is relative to what the client will recompute on its next sync, from fresh save data
+      const d = snap.data();
+      const damage = Number(d.stats?.totalDamageDealt) || 0;
+      let base = computeBaseScore(d, patch, damage);
+
+      // Past 2^53 an additive adjustment loses precision and the score drifts back to huge values.
+      // Such scores come from runaway boss damage, so reset that stat to make the new score stick.
+      if (base > Number.MAX_SAFE_INTEGER) {
+        userUpdate['stats.totalDamageDealt'] = 0;
+        base = computeBaseScore(d, patch, 0);
+        note = 'Total boss damage was reset to 0 — it made the score too large to adjust.';
+      }
+      userUpdate.scoreAdjustment = patch.score - base;
+    } else {
+      userUpdate.scoreAdjustment = player.scoreAdjustment + (patch.score - player.score);
+    }
   }
 
   if (player.hasSave && Object.keys(userUpdate).length > 0) {
@@ -456,6 +490,7 @@ export async function adminUpdatePlayer(player: AdminPlayerRecord, patch: AdminP
   if (player.onLeaderboard && Object.keys(lbUpdate).length > 0) {
     await updateDoc(doc(db, 'leaderboard', player.uid), lbUpdate);
   }
+  return note;
 }
 
 export async function adminRemoveFromLeaderboard(uid: string): Promise<void> {

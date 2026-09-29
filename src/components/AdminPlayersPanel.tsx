@@ -113,14 +113,14 @@ export const AdminPlayersPanel: React.FC = () => {
     setError(null);
   };
 
-  const runAction = async (action: () => Promise<void>, successText: string, keepSelection = true) => {
+  const runAction = async (action: () => Promise<string | null | void>, successText: string, keepSelection = true) => {
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
-      await action();
+      const note = await action();
       sound.playCraft();
-      setNotice(successText);
+      setNotice(note ? `${successText} ${note}` : successText);
       await loadPlayers(keepSelection);
     } catch (err: any) {
       setError(err?.message || 'Firestore update failed.');
@@ -132,23 +132,29 @@ export const AdminPlayersPanel: React.FC = () => {
   const handleSave = () => {
     if (!selected || !form) return;
 
+    // Only fields the admin actually edited are sent, so untouched values (e.g. huge scores) are never rewritten
+    const original = formFromPlayer(selected);
     const patch: AdminPlayerPatch = {};
     const name = form.playerName.trim();
-    const level = toInt(form.level, 1, MAX_LEVEL);
-    const gold = toInt(form.gold, 0, MAX_GOLD);
-    const gems = toInt(form.gems, 0, MAX_GEMS);
-    const score = toInt(form.score, 0, Number.MAX_SAFE_INTEGER);
 
-    if (level === null || gold === null || gems === null || score === null) {
-      setError('All numeric fields must be valid numbers.');
-      return;
+    const numeric: { key: 'level' | 'gold' | 'gems' | 'score'; min: number; max: number }[] = [
+      { key: 'level', min: 1, max: MAX_LEVEL },
+      { key: 'gold', min: 0, max: MAX_GOLD },
+      { key: 'gems', min: 0, max: MAX_GEMS },
+      { key: 'score', min: 0, max: Number.MAX_SAFE_INTEGER },
+    ];
+    for (const { key, min, max } of numeric) {
+      if (form[key].trim() === original[key]) continue;
+      if (key === 'gems' && !selected.hasSave) continue;
+      const value = toInt(form[key], min, max);
+      if (value === null) {
+        setError(`${key} must be a valid number.`);
+        return;
+      }
+      patch[key] = value;
     }
 
     if (name && name !== selected.playerName) patch.playerName = name;
-    if (level !== selected.level) patch.level = level;
-    if (gold !== selected.gold) patch.gold = gold;
-    if (selected.hasSave && gems !== selected.gems) patch.gems = gems;
-    if (score !== selected.score) patch.score = score;
 
     if (Object.keys(patch).length === 0) {
       setNotice('Nothing changed.');
