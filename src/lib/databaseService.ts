@@ -14,6 +14,9 @@ import {
   orderBy,
   limit,
   serverTimestamp,
+  updateDoc,
+  deleteDoc,
+  increment,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import {
@@ -96,12 +99,47 @@ export async function getUserUid(): Promise<string> {
   }
 }
 
+// Admin edits bump `adminRevision` on the user doc. The client remembers the last revision it has
+// applied, so a sync never overwrites an admin edit it hasn't loaded yet.
+const ADMIN_REVISION_KEY = 'aetheria_admin_revision';
+
+const getLocalAdminRevision = () => Number(localStorage.getItem(ADMIN_REVISION_KEY)) || 0;
+const setLocalAdminRevision = (rev: number) => localStorage.setItem(ADMIN_REVISION_KEY, String(rev || 0));
+
+const payloadFromDoc = (d: any): UserSavePayload => ({
+  character: d.character,
+  resources: d.resources,
+  skills: d.skills,
+  achievements: d.achievements,
+  inventory: d.inventory,
+  stats: d.stats || { totalHarvests: 0, totalDamageDealt: 0, itemsCrafted: 0 },
+});
+
 // Save complete player data to Firestore Cloud Database with Unique Cloud Code
-export async function saveGameToCloud(payload: UserSavePayload): Promise<{ success: boolean; uid: string; cloudCode: string; error?: string }> {
+export async function saveGameToCloud(payload: UserSavePayload): Promise<{
+  success: boolean;
+  uid: string;
+  cloudCode: string;
+  error?: string;
+  adminUpdatedData?: UserSavePayload;
+}> {
   try {
     const uid = await getUserUid();
     const cloudCode = getOrCreateCloudCode();
-    const score = calculatePlayerScore(payload.character, payload.resources, payload.stats, payload.achievements);
+
+    const existing = await getDoc(doc(db, 'users', uid));
+    const existingData = existing.exists() ? existing.data() : null;
+    const remoteRevision = Number(existingData?.adminRevision) || 0;
+    if (existingData && remoteRevision > getLocalAdminRevision() && existingData.character && existingData.resources) {
+      setLocalAdminRevision(remoteRevision);
+      return { success: false, uid, cloudCode, adminUpdatedData: payloadFromDoc(existingData) };
+    }
+
+    const scoreAdjustment = Number(existingData?.scoreAdjustment) || 0;
+    const score = Math.max(
+      0,
+      calculatePlayerScore(payload.character, payload.resources, payload.stats, payload.achievements) + scoreAdjustment
+    );
     const unlockedAchievements = payload.achievements.filter((a) => a.unlocked).length;
 
     const combatPower =
@@ -177,6 +215,7 @@ export async function loadGameFromCloud(): Promise<{ success: boolean; data?: Us
 
     if (docSnap.exists()) {
       const d = docSnap.data();
+      setLocalAdminRevision(Number(d.adminRevision) || 0);
       return {
         success: true,
         cloudCode: d.cloudCode || d.syncCode || getOrCreateCloudCode(),
@@ -299,3 +338,130 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// Admin: manage other players' accounts and leaderboard entries
+// ---------------------------------------------------------------------------
+
+export interface AdminPlayerRecord {
+  uid: string;
+  cloudCode: string;
+  playerName: string;
+  heroClass: string;
+  level: number;
+  gold: number;
+  gems: number;
+  score: number;
+  scoreAdjustment: number;
+  updatedAt: string;
+  hasSave: boolean;
+  onLeaderboard: boolean;
+}
+
+// Merge the `users` (save files) and `leaderboard` collections into one list keyed by uid
+export async function adminFetchPlayers(): Promise<AdminPlayerRecord[]> {
+  const [usersSnap, lbSnap] = await Promise.all([
+    getDocs(query(collection(db, 'users'), limit(500))),
+    getDocs(query(collection(db, 'leaderboard'), limit(500))),
+  ]);
+
+  const players = new Map<string, AdminPlayerRecord>();
+
+  lbSnap.forEach((docSnap) => {
+    const d = docSnap.data();
+    players.set(docSnap.id, {
+      uid: docSnap.id,
+      cloudCode: d.cloudCode || d.syncCode || '',
+      playerName: d.playerName || 'Hero of Aetheria',
+      heroClass: d.heroClass || 'warrior',
+      level: Number(d.level) || 1,
+      gold: Number(d.gold) || 0,
+      gems: 0,
+      score: Number(d.score) || 0,
+      scoreAdjustment: 0,
+      updatedAt: d.updatedAt || '',
+      hasSave: false,
+      onLeaderboard: true,
+    });
+  });
+
+  usersSnap.forEach((docSnap) => {
+    const d = docSnap.data();
+    const lb = players.get(docSnap.id);
+    players.set(docSnap.id, {
+      uid: docSnap.id,
+      cloudCode: d.cloudCode || d.syncCode || lb?.cloudCode || '',
+      playerName: d.displayName || d.character?.name || lb?.playerName || 'Hero of Aetheria',
+      heroClass: d.heroClass || d.character?.heroClass || lb?.heroClass || 'warrior',
+      level: Number(d.character?.level ?? d.level) || lb?.level || 1,
+      gold: Number(d.resources?.gold ?? d.gold) || 0,
+      gems: Number(d.resources?.gems ?? d.gems) || 0,
+      score: lb ? lb.score : Number(d.score) || 0,
+      scoreAdjustment: Number(d.scoreAdjustment) || 0,
+      updatedAt: d.updatedAt || lb?.updatedAt || '',
+      hasSave: true,
+      onLeaderboard: !!lb,
+    });
+  });
+
+  return [...players.values()].sort((a, b) => b.score - a.score);
+}
+
+export interface AdminPlayerPatch {
+  gold?: number;
+  gems?: number;
+  level?: number;
+  playerName?: string;
+  score?: number; // new target score; stored as an adjustment so it survives the player's next sync
+}
+
+export async function adminUpdatePlayer(player: AdminPlayerRecord, patch: AdminPlayerPatch): Promise<void> {
+  const userUpdate: Record<string, unknown> = {};
+  const lbUpdate: Record<string, unknown> = {};
+
+  if (patch.gold !== undefined) {
+    userUpdate['resources.gold'] = patch.gold;
+    userUpdate.gold = patch.gold;
+    lbUpdate.gold = patch.gold;
+  }
+  if (patch.gems !== undefined) {
+    userUpdate['resources.gems'] = patch.gems;
+    userUpdate.gems = patch.gems;
+  }
+  if (patch.level !== undefined) {
+    userUpdate['character.level'] = patch.level;
+    userUpdate['character.xp'] = 0;
+    userUpdate['character.xpToNextLevel'] = patch.level * 120 + 60;
+    userUpdate.level = patch.level;
+    lbUpdate.level = patch.level;
+  }
+  if (patch.playerName !== undefined) {
+    userUpdate['character.name'] = patch.playerName;
+    userUpdate.displayName = patch.playerName;
+    lbUpdate.playerName = patch.playerName;
+  }
+  if (patch.score !== undefined) {
+    userUpdate.scoreAdjustment = player.scoreAdjustment + (patch.score - player.score);
+    userUpdate.score = patch.score;
+    lbUpdate.score = patch.score;
+  }
+
+  if (player.hasSave && Object.keys(userUpdate).length > 0) {
+    await updateDoc(doc(db, 'users', player.uid), {
+      ...userUpdate,
+      adminRevision: increment(1),
+      adminEditedAt: new Date().toISOString(),
+    });
+  }
+  if (player.onLeaderboard && Object.keys(lbUpdate).length > 0) {
+    await updateDoc(doc(db, 'leaderboard', player.uid), lbUpdate);
+  }
+}
+
+export async function adminRemoveFromLeaderboard(uid: string): Promise<void> {
+  await deleteDoc(doc(db, 'leaderboard', uid));
+}
+
+export async function adminDeletePlayer(uid: string): Promise<void> {
+  await Promise.all([deleteDoc(doc(db, 'leaderboard', uid)), deleteDoc(doc(db, 'users', uid))]);
+}

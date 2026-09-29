@@ -119,6 +119,16 @@ export const LeaderboardPanel: React.FC<LeaderboardPanelProps> = ({
       if (result.cloudCode) setUserCloudCode(result.cloudCode);
       setSyncMessage({ type: 'success', text: `Progress synced! Your Unique Cloud Code is ${result.cloudCode}` });
       loadData();
+    } else if (result.adminUpdatedData) {
+      // An admin changed this account in the cloud; take their version instead of overwriting it
+      if (onLoadCloudSave) {
+        onLoadCloudSave(result.adminUpdatedData);
+      }
+      setSyncMessage({
+        type: 'success',
+        text: 'Your account was updated by an admin. The updated cloud save has been loaded — sync again to save new progress.',
+      });
+      loadData();
     } else {
       setSyncMessage({ type: 'error', text: result.error || 'Failed to sync save file to Cloud Database.' });
     }

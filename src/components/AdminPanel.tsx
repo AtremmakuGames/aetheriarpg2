@@ -4,7 +4,8 @@ import { EQUIPMENT_CATALOG } from '../data/gameData';
 import { FORGE_QUALITIES, createForgedItem } from '../data/forgeData';
 import { sha256Hex } from '../lib/sha256';
 import { sound } from '../audio';
-import { KeyRound, LogOut, ShieldAlert, Coins, UserCog, Package, Wand2, Lock } from 'lucide-react';
+import { AdminPlayersPanel } from './AdminPlayersPanel';
+import { KeyRound, LogOut, ShieldAlert, Coins, UserCog, Package, Wand2, Lock, Users } from 'lucide-react';
 
 // SHA-256 of the admin password, so the plain password is not shipped in the bundle
 const ADMIN_PASSWORD_HASH = 'a04e12b639d0d1299c79961a0ec7fb54ee0b2963eaff2931820a286383d0c263';
@@ -82,6 +83,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [now, setNow] = useState(Date.now());
   const [loginError, setLoginError] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
+  const [view, setView] = useState<'self' | 'players'>('self');
 
   const [resKey, setResKey] = useState<AdminResourceKey>('gold');
   const [resAmount, setResAmount] = useState('1000');
@@ -198,7 +200,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <ShieldAlert className="w-6 h-6 text-rose-400" />
           <div>
             <h2 className="text-lg font-black text-slate-100">Admin Panel</h2>
-            <p className="text-xs text-slate-400">Edit this save's resources, hero and items</p>
+            <p className="text-xs text-slate-400">Manage your own save, other players' accounts and the leaderboard</p>
           </div>
         </div>
         <button onClick={handleLogout} className={`${btn} flex items-center gap-1.5`}>
@@ -206,6 +208,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </button>
       </div>
 
+      <div className="flex gap-1">
+        {[
+          { id: 'self' as const, label: 'My Save', icon: UserCog },
+          { id: 'players' as const, label: 'Players & Leaderboard', icon: Users },
+        ].map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => {
+              sound.playClick();
+              setView(id);
+            }}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+              view === id ? 'bg-rose-500 text-slate-950' : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'players' ? (
+        <AdminPlayersPanel />
+      ) : (
+      <>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Section icon={Coins} title="Resources">
           <div className="flex flex-wrap gap-2">
@@ -361,6 +387,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </p>
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   );
