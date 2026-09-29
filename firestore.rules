@@ -7,5 +7,15 @@ service cloud.firestore {
     match /leaderboard/{userId} {
       allow read, write: if true;
     }
+    match /promoCodes/{code} {
+      allow read, create, delete: if true;
+      // Updates may only toggle `active`, or claim exactly one activation within the limit
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active'])
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activations', 'redeemedBy'])
+          && resource.data.active == true
+          && request.resource.data.activations == resource.data.activations + 1
+          && request.resource.data.activations <= resource.data.maxActivations
+          && request.resource.data.redeemedBy.size() == resource.data.redeemedBy.size() + 1);
+    }
   }
 }

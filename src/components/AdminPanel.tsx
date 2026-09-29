@@ -5,7 +5,8 @@ import { FORGE_QUALITIES, createForgedItem } from '../data/forgeData';
 import { sha256Hex } from '../lib/sha256';
 import { sound } from '../audio';
 import { AdminPlayersPanel } from './AdminPlayersPanel';
-import { KeyRound, LogOut, ShieldAlert, Coins, UserCog, Package, Wand2, Lock, Users } from 'lucide-react';
+import { AdminPromoCodesPanel } from './AdminPromoCodesPanel';
+import { KeyRound, LogOut, ShieldAlert, Coins, UserCog, Package, Wand2, Lock, Users, Ticket } from 'lucide-react';
 
 // SHA-256 of the admin password, so the plain password is not shipped in the bundle
 const ADMIN_PASSWORD_HASH = 'a04e12b639d0d1299c79961a0ec7fb54ee0b2963eaff2931820a286383d0c263';
@@ -83,7 +84,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [now, setNow] = useState(Date.now());
   const [loginError, setLoginError] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
-  const [view, setView] = useState<'self' | 'players'>('self');
+  const [view, setView] = useState<'self' | 'players' | 'codes'>('self');
 
   const [resKey, setResKey] = useState<AdminResourceKey>('gold');
   const [resAmount, setResAmount] = useState('1000');
@@ -208,10 +209,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </button>
       </div>
 
-      <div className="flex gap-1">
+      <div className="flex flex-wrap gap-1">
         {[
           { id: 'self' as const, label: 'My Save', icon: UserCog },
           { id: 'players' as const, label: 'Players & Leaderboard', icon: Users },
+          { id: 'codes' as const, label: 'Promo Codes', icon: Ticket },
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -230,6 +232,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {view === 'players' ? (
         <AdminPlayersPanel />
+      ) : view === 'codes' ? (
+        <AdminPromoCodesPanel />
       ) : (
       <>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

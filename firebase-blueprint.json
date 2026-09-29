@@ -38,6 +38,23 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["uid", "displayName", "level", "score"]
+    },
+    "promoCodes": {
+      "title": "Promo Codes",
+      "description": "Admin-created redeemable codes with rewards and an activation limit",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "gold": { "type": "number" },
+        "gems": { "type": "number" },
+        "items": { "type": "array" },
+        "maxActivations": { "type": "number" },
+        "activations": { "type": "number" },
+        "redeemedBy": { "type": "array" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["code", "maxActivations", "activations"]
     }
   },
   "security": {
@@ -49,6 +66,11 @@
       },
       {
         "path": "leaderboard/{userId}",
+        "read": "true",
+        "write": "true"
+      },
+      {
+        "path": "promoCodes/{code}",
         "read": "true",
         "write": "true"
       }

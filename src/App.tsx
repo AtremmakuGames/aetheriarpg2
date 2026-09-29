@@ -14,6 +14,10 @@ import { FarmDimensionPanel } from './components/FarmDimensionPanel';
 import { ResetGamePanel } from './components/ResetGamePanel';
 import { LeaderboardPanel } from './components/LeaderboardPanel';
 import { AdminPanel, AdminResourceKey } from './components/AdminPanel';
+import { CodesPanel } from './components/CodesPanel';
+import { PromoRewards } from './lib/promoCodes';
+import { EQUIPMENT_CATALOG } from './data/gameData';
+import { createForgedItem } from './data/forgeData';
 import { UserSavePayload } from './lib/databaseService';
 import { sound } from './audio';
 import {
@@ -37,6 +41,7 @@ import {
   Apple,
   RotateCcw,
   ShieldAlert,
+  Ticket,
 } from 'lucide-react';
 
 export default function App() {
@@ -890,6 +895,22 @@ export default function App() {
     setInventory((prev) => [...prev, item]);
   };
 
+  // Promo code rewards (limits and one-per-player are enforced when the code is claimed)
+  const handleRedeemRewards = (rewards: PromoRewards) => {
+    setResources((prev) => ({
+      ...prev,
+      gold: Math.min(adminResourceCap('gold'), prev.gold + rewards.gold),
+      gems: Math.min(adminResourceCap('gems'), prev.gems + rewards.gems),
+    }));
+    const items = rewards.items
+      .map((it) => {
+        const recipe = EQUIPMENT_CATALOG.find((r) => r.id === it.recipeId);
+        return recipe ? createForgedItem(recipe, it.quality) : null;
+      })
+      .filter((it): it is EquipmentItem => it !== null);
+    if (items.length > 0) setInventory((prev) => [...prev, ...items]);
+  };
+
   const activeZone = GATHERING_ZONES[activeZoneIndex];
 
   // Portal Travel Handler
@@ -1012,6 +1033,7 @@ export default function App() {
           { id: 'skills', label: 'Skill Matrix', icon: Sparkles },
           { id: 'achievements', label: 'Achievements', icon: Trophy },
           { id: 'reset', label: 'Reset Game', icon: RotateCcw },
+          { id: 'codes', label: 'Codes', icon: Ticket },
           { id: 'admin', label: 'Admin', icon: ShieldAlert },
         ].map(({ id, label, icon: IconComp }) => {
           const isActive = activeTab === id;
@@ -1199,6 +1221,8 @@ export default function App() {
             onResetGame={handleResetGame}
           />
         )}
+
+        {activeTab === 'codes' && <CodesPanel onRedeemRewards={handleRedeemRewards} />}
 
         {activeTab === 'admin' && (
           <AdminPanel
