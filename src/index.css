@@ -22,3 +22,27 @@
 .animate-float-fade {
   animation: floatAndFadeOut 2.8s ease-out forwards;
 }
+
+/* Blacksmith anvil: hammer swing and spark burst */
+@keyframes hammer {
+  0% {
+    transform: rotate(-35deg);
+  }
+  55% {
+    transform: rotate(18deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes spark {
+  0% {
+    opacity: 1;
+    transform: rotate(var(--spark-angle)) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--spark-angle)) translateY(-38px);
+  }
+}

@@ -142,6 +142,34 @@ class SoundEngine {
     osc.stop(ctx.currentTime + 0.2);
   }
 
+  // Metallic hammer-on-anvil clang; a clean hit rings brighter and longer than a miss
+  public playAnvilStrike(kind: 'perfect' | 'good' | 'miss') {
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const base = kind === 'perfect' ? 1400 : kind === 'good' ? 1100 : 320;
+    const duration = kind === 'perfect' ? 0.6 : kind === 'good' ? 0.35 : 0.15;
+    const partials = kind === 'miss' ? [1] : [1, 2.76, 5.4];
+
+    partials.forEach((ratio, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = kind === 'miss' ? 'square' : 'triangle';
+      osc.frequency.setValueAtTime(base * ratio, now);
+
+      gain.gain.setValueAtTime((kind === 'miss' ? 0.12 : 0.18) / (idx + 1), now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration / (idx + 1));
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + duration);
+    });
+  }
+
   public playClick() {
     const ctx = this.getContext();
     if (!ctx) return;

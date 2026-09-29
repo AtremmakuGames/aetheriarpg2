@@ -168,7 +168,12 @@ export interface EquipmentItem {
   iconName: string;
   sellPriceGold?: number;
   enhancementLevel?: number;
+  // Set on items forged at the anvil: the catalog recipe id and the forge quality reached
+  baseId?: string;
+  quality?: ForgeQuality;
 }
+
+export type ForgeQuality = 'crude' | 'standard' | 'fine' | 'superior' | 'masterwork';
 
 export interface SkillNode {
   id: string;

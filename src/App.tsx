@@ -13,6 +13,7 @@ import { StorePanel } from './components/StorePanel';
 import { FarmDimensionPanel } from './components/FarmDimensionPanel';
 import { ResetGamePanel } from './components/ResetGamePanel';
 import { LeaderboardPanel } from './components/LeaderboardPanel';
+import { AdminPanel, AdminResourceKey } from './components/AdminPanel';
 import { UserSavePayload } from './lib/databaseService';
 import { sound } from './audio';
 import {
@@ -35,6 +36,7 @@ import {
   Utensils,
   Apple,
   RotateCcw,
+  ShieldAlert,
 } from 'lucide-react';
 
 export default function App() {
@@ -461,7 +463,13 @@ export default function App() {
   };
 
   // Craft Equipment Item
-  const handleCraftItem = (item: EquipmentItem) => {
+  const handleCraftItem = (item: EquipmentItem): boolean => {
+    // Re-check requirements: resources may have changed while the item was on the anvil
+    const affordable = Object.entries(item.cost).every(
+      ([rKey, amt]) => (resources[rKey as keyof Resources] || 0) >= (amt || 0)
+    );
+    if (!affordable || character.level < item.levelReq) return false;
+
     // Deduct resources
     setResources((prev) => {
       const next = { ...prev };
@@ -489,6 +497,7 @@ export default function App() {
     const newCraftCount = stats.itemsCrafted + 1;
     setStats((s) => ({ ...s, itemsCrafted: newCraftCount }));
     checkAchievements('crafting', newCraftCount);
+    return true;
   };
 
   // Unequip Item
@@ -822,6 +831,65 @@ export default function App() {
     setStats((s) => ({ ...s, totalDamageDealt: s.totalDamageDealt + dmg }));
   };
 
+  // Admin Panel: caps mirror the sanitizer applied when resources are loaded from storage
+  const adminResourceCap = (key: AdminResourceKey) =>
+    key === 'gems' ? 50000 : key === 'gold' ? 50000000 : key === 'hunger' ? 100 : 9999999;
+
+  const handleAdminChangeResource = (key: AdminResourceKey, amount: number, mode: 'add' | 'set') => {
+    setResources((prev) => {
+      const target = mode === 'add' ? (prev[key] || 0) + amount : amount;
+      return { ...prev, [key]: Math.min(adminResourceCap(key), Math.max(0, Math.floor(target))) };
+    });
+  };
+
+  const handleAdminFillAllMaterials = (amount: number) => {
+    const skip = ['gold', 'gems', 'hunger', 'hoeTier', 'healingPotions', 'afkFarmerCharges'];
+    setResources((prev) => {
+      const next = { ...prev };
+      (Object.keys(next) as AdminResourceKey[]).forEach((key) => {
+        if (skip.includes(key)) return;
+        next[key] = Math.min(adminResourceCap(key), (next[key] || 0) + amount);
+      });
+      return next;
+    });
+  };
+
+  const handleAdminSetLevel = (level: number) => {
+    setCharacter((prev) => ({
+      ...prev,
+      level,
+      xp: 0,
+      xpToNextLevel: level * 120 + 60,
+      title: level >= 20 ? 'Master Realm Crafter' : level >= 10 ? 'Aether Veteran' : 'Novice Adventurer',
+    }));
+    checkAchievements('level', level);
+  };
+
+  const handleAdminGrantPoints = (statPoints: number, skillPoints: number) => {
+    setCharacter((prev) => ({
+      ...prev,
+      statPoints: prev.statPoints + statPoints,
+      skillPoints: prev.skillPoints + skillPoints,
+    }));
+  };
+
+  const handleAdminUnlockAllClasses = () => {
+    setCharacter((prev) => ({ ...prev, unlockedClasses: ['warrior', 'mage', 'ranger', 'alchemist'] }));
+  };
+
+  const handleAdminUnlockAllSkills = () => {
+    setSkills((prev) => prev.map((s) => ({ ...s, unlocked: true })));
+    checkAchievements('skills', skills.length);
+  };
+
+  const handleAdminResetCooldowns = () => {
+    setSkills((prev) => prev.map((s) => ({ ...s, currentCooldown: 0 })));
+  };
+
+  const handleAdminGiveItem = (item: EquipmentItem) => {
+    setInventory((prev) => [...prev, item]);
+  };
+
   const activeZone = GATHERING_ZONES[activeZoneIndex];
 
   // Portal Travel Handler
@@ -944,6 +1012,7 @@ export default function App() {
           { id: 'skills', label: 'Skill Matrix', icon: Sparkles },
           { id: 'achievements', label: 'Achievements', icon: Trophy },
           { id: 'reset', label: 'Reset Game', icon: RotateCcw },
+          { id: 'admin', label: 'Admin', icon: ShieldAlert },
         ].map(({ id, label, icon: IconComp }) => {
           const isActive = activeTab === id;
 
@@ -1128,6 +1197,21 @@ export default function App() {
             resources={resources}
             inventoryCount={inventory.length}
             onResetGame={handleResetGame}
+          />
+        )}
+
+        {activeTab === 'admin' && (
+          <AdminPanel
+            character={character}
+            resources={resources}
+            onChangeResource={handleAdminChangeResource}
+            onFillAllMaterials={handleAdminFillAllMaterials}
+            onSetLevel={handleAdminSetLevel}
+            onGrantPoints={handleAdminGrantPoints}
+            onUnlockAllClasses={handleAdminUnlockAllClasses}
+            onUnlockAllSkills={handleAdminUnlockAllSkills}
+            onResetCooldowns={handleAdminResetCooldowns}
+            onGiveItem={handleAdminGiveItem}
           />
         )}
       </div>
